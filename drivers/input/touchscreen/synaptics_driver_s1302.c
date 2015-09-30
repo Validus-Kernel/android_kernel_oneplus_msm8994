@@ -55,10 +55,12 @@
 #include <linux/input/mt.h>
 
 #include "synaptics_s1302_redremote.h"
+#include "../misc/fpc1020.h"
 #include <linux/boot_mode.h>
 #include <linux/project_info.h>
 /*------------------------------------------------Global Define--------------------------------------------*/
 #define TP_TEST_ENABLE 1
+#define SYNAPTICS_NAME "synaptics"
 #define TPD_DEVICE "synaptics,s1302"
 #define LOG_TAG		"touchkey,s1302"
 
@@ -661,13 +663,17 @@ static int synaptics_rmi4_i2c_write_word(struct i2c_client* client,
 	return retval;
 }
 */
+static char log_count = 0;
 #define REP_KEY_MENU (key_reverse?(KEY_BACK):(KEY_MENU))
 #define REP_KEY_BACK (key_reverse?(KEY_MENU):(KEY_BACK))
 static void int_key(struct synaptics_ts_data *ts )
 {
 
     int ret;
-	int button_key;
+    int button_key;
+
+    if (!nav_switch)
+        return;
 
     ret = synaptics_rmi4_i2c_write_byte(ts->client, 0xff, 0x02 );
     if (ret < 0) {
@@ -677,7 +683,8 @@ static void int_key(struct synaptics_ts_data *ts )
     }
 
     button_key = synaptics_rmi4_i2c_read_byte(ts->client,0x00);
-    printk("%s	button_key:%d   pre_btn_state:%d\n",__func__,button_key,ts->pre_btn_state);
+    if (6 == (++log_count % 12))
+        printk("%s	button_key:%d   pre_btn_state:%d\n",__func__,button_key,ts->pre_btn_state);
     if((button_key & 0x01) && !(ts->pre_btn_state & 0x01))//back
     {
         input_report_key(ts->input_dev, REP_KEY_BACK, 1);
@@ -764,7 +771,7 @@ static int	synaptics_input_init(struct synaptics_ts_data *ts)
 		TPD_ERR("synaptics_ts_probe: Failed to allocate input device\n");
 		return ret;
 	}
-    ts->input_dev->name = TPD_DEVICE;;
+    ts->input_dev->name = SYNAPTICS_NAME;
     ts->input_dev->dev.parent = &ts->client->dev;
 	set_bit(EV_SYN, ts->input_dev->evbit);
 	set_bit(EV_KEY, ts->input_dev->evbit);
@@ -899,7 +906,7 @@ static ssize_t synaptics_s1302_key_reverse_write(struct file *file, const char _
 }
 static int synaptics_s1302_key_reverse_show(struct seq_file *seq, void *offset)
 {
-    seq_printf(seq, "s1302 menu key in %s\n",key_reverse?("right"):("left"));
+    seq_printf(seq, "%d\n",key_reverse);
     return 0 ;
 }
 static int synaptics_s1302_key_reverse_open(struct inode *inode, struct file *file)
